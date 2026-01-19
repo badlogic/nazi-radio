@@ -40,6 +40,9 @@
             background: #0066cc;
             color: white;
         }
+        .tab:hover:not(.active) {
+            background: #ccc;
+        }
         .episode {
             background: white;
             border-radius: 8px;
@@ -139,23 +142,16 @@
             padding: 40px;
             color: #666;
         }
-        .section-title {
-            font-size: 14px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin: 30px 0 15px 0;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        .section-title:first-child {
-            margin-top: 0;
-        }
     </style>
 </head>
 <body>
-    <h1>🔴 Austria First Transcripts</h1>
-    <p class="subtitle">Automatische Transkription des FPÖ-Radiosenders</p>
+    <h1>Austria First Transcripts</h1>
+    <p class="subtitle">Automatische Transkription des FPO-Radiosenders</p>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="archive">Archiv</button>
+        <button class="tab" data-tab="live">Live</button>
+    </div>
 
     <div id="content">
         <div class="loading">Laden...</div>
@@ -165,6 +161,7 @@
         const DATA_BASE = '/data';
         let archiveData = [];
         let liveData = [];
+        let currentTab = 'archive';
 
         function formatDuration(ms) {
             if (!ms || isNaN(ms)) return '';
@@ -216,13 +213,11 @@
             const audioUrl = `${DATA_BASE}/${episode.audioFile}`;
             const audioId = `audio-${episode.id}`;
             
-            // Calculate duration from transcript if not available
             let duration = episode.duration;
             if (!duration && episode.transcript && episode.transcript.length > 0) {
                 duration = episode.transcript[episode.transcript.length - 1].end;
             }
             
-            // Clean up title
             let title = (episode.title || '').replace(/\s*-\s*Austria First$/i, '').trim();
             
             const transcriptHtml = episode.transcript && episode.transcript.length > 0 
@@ -231,7 +226,7 @@
                         <span class="transcript-time" onclick="seekTo('${audioId}', ${seg.start})">${formatTime(seg.start)}</span>${seg.text}
                     </span>
                 `).join(' ')
-                : '<em>Kein Transkript verfügbar</em>';
+                : '<em>Kein Transkript verfuegbar</em>';
 
             return `
                 <div class="episode">
@@ -244,8 +239,8 @@
                             </div>
                         </div>
                         <div class="episode-actions">
-                            <a class="download-btn" href="${audioUrl}" download>⬇ MP3</a>
-                            <button class="download-btn" onclick="downloadTranscript(${type}Data.find(e => e.id === '${episode.id}'))">⬇ Text</button>
+                            <a class="download-btn" href="${audioUrl}" download>MP3</a>
+                            <button class="download-btn" onclick="downloadTranscript(${type}Data.find(e => e.id === '${episode.id}'))">Text</button>
                         </div>
                     </div>
                     <audio id="${audioId}" controls preload="none">
@@ -266,26 +261,22 @@
 
         function render() {
             const content = document.getElementById('content');
+            const data = currentTab === 'archive' ? archiveData : liveData;
             
-            let html = '';
-            
-            // Archive section
-            if (archiveData.length > 0) {
-                html += '<div class="section-title">📚 Archiv</div>';
-                html += archiveData.map(ep => renderEpisode(ep, 'archive')).join('');
+            if (data.length === 0) {
+                content.innerHTML = '<div class="empty">Keine Eintraege gefunden</div>';
+                return;
             }
             
-            // Live section
-            if (liveData.length > 0) {
-                html += '<div class="section-title">🔴 Live Aufnahmen</div>';
-                html += liveData.map(ep => renderEpisode(ep, 'live')).join('');
-            }
-            
-            if (html === '') {
-                html = '<div class="empty">Keine Einträge gefunden</div>';
-            }
-            
-            content.innerHTML = html;
+            content.innerHTML = data.map(ep => renderEpisode(ep, currentTab)).join('');
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+            render();
         }
 
         async function loadData() {
@@ -306,6 +297,11 @@
                 content.innerHTML = `<div class="error">Fehler beim Laden: ${err.message}</div>`;
             }
         }
+
+        // Tab click handlers
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        });
 
         // Initial load
         loadData();

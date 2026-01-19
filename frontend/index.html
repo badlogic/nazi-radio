@@ -34,6 +34,9 @@
         .explainer p:last-child {
             margin-bottom: 0;
         }
+        .explainer a {
+            color: #0066cc;
+        }
         .tabs {
             display: flex;
             gap: 10px;
@@ -180,12 +183,16 @@
     <h1>Austria First Transcripts</h1>
     
     <div class="explainer">
-        <p>Diese Seite dokumentiert den FPÖ-Radiosender "Austria First" durch automatische Transkription. 
-        Archivierte Sendungen werden von der offiziellen Website bezogen, Live-Aufnahmen direkt vom Stream mitgeschnitten.</p>
-        <p>Die Transkription erfolgt automatisch mittels Spracherkennung (Whisper). 
-        Fehler bei Eigennamen, Fachbegriffen oder undeutlicher Sprache sind möglich. 
-        Bei Musikpassagen kann es zu fehlerhaften Textausgaben kommen.
-        Zur Verifizierung werden die Original-Audiodateien bereitgestellt.</p>
+        <p><strong>Was ist das?</strong> 
+        Automatische Verschriftlichung des FPÖ-Radiosenders "Austria First". 
+        Archiv-Sendungen stammen von der offiziellen Website, Live-Aufnahmen werden direkt vom Stream mitgeschnitten.</p>
+        <p><strong>Wie funktioniert das?</strong> 
+        Die Texte werden von <a href="https://openai.com/index/whisper/" target="_blank">Whisper</a> erstellt, einer Software zur automatischen Spracherkennung. 
+        <a href="https://de.wikipedia.org/wiki/Whisper_(Spracherkennung)" target="_blank">Mehr dazu auf Wikipedia</a>.</p>
+        <p><strong>Wie genau ist das?</strong> 
+        Bei Namen, Fachbegriffen oder undeutlicher Sprache können Fehler auftreten. 
+        Live-Aufnahmen enthalten auch Musik. Dabei kann es passieren, dass Songtexte transkribiert werden oder die Software unsinnigen Text erzeugt. 
+        Die Original-Audiodateien stehen zum Vergleich bereit.</p>
     </div>
 
     <div class="tabs">

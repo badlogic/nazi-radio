@@ -57,19 +57,28 @@ deploy)
     echo "✅ Deployed to https://af.mariozechner.at"
     ;;
 logs)
-    remoteCmd "docker compose logs -f"
+    remoteCmd "docker compose logs --tail 100"
     ;;
 logs:mon|logs:monitor)
-    remoteCmd "docker compose logs -f monitor"
+    remoteCmd "docker compose logs --tail 100 monitor"
     ;;
 logs:scraper)
-    remoteCmd "docker compose logs -f scraper"
+    remoteCmd "docker compose logs --tail 100 scraper"
     ;;
 logs:web)
-    remoteCmd "docker compose logs -f web"
+    remoteCmd "docker compose logs --tail 100 web"
     ;;
 logs:flare|logs:flaresolverr)
-    remoteCmd "docker compose logs -f flaresolverr"
+    remoteCmd "docker compose logs --tail 100 flaresolverr"
+    ;;
+tail)
+    ssh -t $HOST "cd ~/$DIR && docker compose logs -f"
+    ;;
+tail:mon|tail:monitor)
+    ssh -t $HOST "cd ~/$DIR && docker compose logs -f monitor"
+    ;;
+tail:scraper)
+    ssh -t $HOST "cd ~/$DIR && docker compose logs -f scraper"
     ;;
 ps|status)
     remoteCmd "docker compose ps"

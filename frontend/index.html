@@ -180,10 +180,11 @@
     <h1>Austria First Transcripts</h1>
     
     <div class="explainer">
-        <p>Diese Seite dokumentiert den FPOe-Radiosender "Austria First" durch automatische Transkription. 
+        <p>Diese Seite dokumentiert den FPÖ-Radiosender "Austria First" durch automatische Transkription. 
         Archivierte Sendungen werden von der offiziellen Website bezogen, Live-Aufnahmen direkt vom Stream mitgeschnitten.</p>
         <p>Die Transkription erfolgt automatisch mittels Spracherkennung (Whisper). 
-        Fehler bei Eigennamen, Fachbegriffen oder undeutlicher Sprache sind moeglich. 
+        Fehler bei Eigennamen, Fachbegriffen oder undeutlicher Sprache sind möglich. 
+        Bei Musikpassagen kann es zu fehlerhaften Textausgaben kommen.
         Zur Verifizierung werden die Original-Audiodateien bereitgestellt.</p>
     </div>
 
@@ -266,7 +267,7 @@
                         <span class="transcript-time" onclick="seekTo('${audioId}', ${seg.start})">${formatTime(seg.start)}</span>${seg.text}
                     </span>
                 `).join(' ')
-                : '<em>Kein Transkript verfuegbar</em>';
+                : '<em>Kein Transkript verfügbar</em>';
 
             const transcriptId = `transcript-${episode.id}`;
 
@@ -315,7 +316,7 @@
             const data = currentTab === 'archive' ? archiveData : liveData;
             
             if (data.length === 0) {
-                content.innerHTML = '<div class="empty">Keine Eintraege gefunden</div>';
+                content.innerHTML = '<div class="empty">Keine Einträge gefunden</div>';
                 return;
             }
             

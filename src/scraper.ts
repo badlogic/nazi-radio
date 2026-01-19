@@ -86,7 +86,7 @@ async function fetchViaFlareSolverr(url: string): Promise<string> {
 async function downloadAudio(url: string, outputPath: string): Promise<void> {
     if (!cfCookie) {
         // Get cookie first
-        await fetchViaFlareSolverr(API_URL);
+        await fetchViaFlareSolverr(API_ENDPOINTS[0]);
     }
 
     console.log(`   ⬇️  Downloading ${path.basename(url)}...`);
@@ -240,7 +240,7 @@ async function runScraperOnce(): Promise<void> {
 
 async function runScraperLoop(): Promise<void> {
     console.log("🔍 Austria First Archive Scraper");
-    console.log(`   API: ${API_URL}`);
+    console.log(`   APIs: ${API_ENDPOINTS.length} endpoints`);
     console.log(`   FlareSolverr: ${FLARESOLVERR_URL}`);
     console.log(`   Data dir: ${DATA_DIR}`);
     console.log(`   Interval: ${SCRAPE_INTERVAL_MS / 1000 / 60} minutes\n`);

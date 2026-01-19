@@ -23,8 +23,8 @@ rsync -avz --delete \
 # Deploy
 ssh $HOST "cd ~/$DIR && \
     export GROQ_API_KEY='$GROQ_API_KEY' && \
-    docker-compose build && \
-    docker-compose up -d"
+    docker compose build && \
+    docker compose up -d"
 
 echo ""
 echo "✅ Deployed to https://af.mariozechner.at"

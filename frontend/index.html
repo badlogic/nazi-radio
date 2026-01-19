@@ -52,11 +52,18 @@
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 10px;
+            gap: 15px;
         }
         .episode-title {
             font-weight: 600;
             font-size: 16px;
             color: #1a1a1a;
+        }
+        .episode-meta {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 5px;
         }
         .episode-date {
             color: #666;
@@ -65,6 +72,31 @@
         .episode-duration {
             color: #999;
             font-size: 12px;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 3px;
+        }
+        .episode-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .download-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .download-btn:hover {
+            background: #f5f5f5;
+            border-color: #ccc;
         }
         audio {
             width: 100%;
@@ -87,6 +119,7 @@
             font-size: 12px;
             cursor: pointer;
             margin-right: 8px;
+            font-family: monospace;
         }
         .transcript-time:hover {
             text-decoration: underline;
@@ -106,16 +139,23 @@
             padding: 40px;
             color: #666;
         }
+        .section-title {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .section-title:first-child {
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
     <h1>🔴 Austria First Transcripts</h1>
     <p class="subtitle">Automatische Transkription des FPÖ-Radiosenders</p>
-
-    <div class="tabs">
-        <button class="tab active" data-tab="live">Live Aufnahmen</button>
-        <button class="tab" data-tab="archive">Archiv</button>
-    </div>
 
     <div id="content">
         <div class="loading">Laden...</div>
@@ -123,11 +163,11 @@
 
     <script>
         const DATA_BASE = '/data';
-        let currentTab = 'live';
-        let liveData = [];
         let archiveData = [];
+        let liveData = [];
 
         function formatDuration(ms) {
+            if (!ms || isNaN(ms)) return '';
             const mins = Math.floor(ms / 60000);
             const secs = Math.floor((ms % 60000) / 1000);
             return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -151,6 +191,27 @@
             });
         }
 
+        function transcriptToText(transcript) {
+            if (!transcript || !transcript.length) return '';
+            return transcript.map(seg => {
+                const time = formatTime(seg.start);
+                return `[${time}] ${seg.text}`;
+            }).join('\n\n');
+        }
+
+        function downloadTranscript(episode) {
+            const text = transcriptToText(episode.transcript);
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${episode.id || episode.title.slice(0, 30)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
         function renderEpisode(episode, type) {
             const audioUrl = `${DATA_BASE}/${episode.audioFile}`;
             const audioId = `audio-${episode.id}`;
@@ -162,28 +223,35 @@
             }
             
             // Clean up title
-            let title = episode.title.replace(/\s*-\s*Austria First$/i, '').trim();
+            let title = (episode.title || '').replace(/\s*-\s*Austria First$/i, '').trim();
             
-            const transcriptHtml = episode.transcript.map((seg, i) => `
-                <span class="transcript-segment">
-                    <span class="transcript-time" onclick="seekTo('${audioId}', ${seg.start})">${formatTime(seg.start)}</span>
-                    ${seg.text}
-                </span>
-            `).join(' ');
+            const transcriptHtml = episode.transcript && episode.transcript.length > 0 
+                ? episode.transcript.map((seg, i) => `
+                    <span class="transcript-segment">
+                        <span class="transcript-time" onclick="seekTo('${audioId}', ${seg.start})">${formatTime(seg.start)}</span>${seg.text}
+                    </span>
+                `).join(' ')
+                : '<em>Kein Transkript verfügbar</em>';
 
             return `
                 <div class="episode">
                     <div class="episode-header">
                         <div>
                             <div class="episode-title">${title}</div>
-                            <div class="episode-date">${formatDate(episode.timestamp)}</div>
+                            <div class="episode-meta">
+                                <span class="episode-date">${formatDate(episode.timestamp)}</span>
+                                ${duration ? `<span class="episode-duration">${formatDuration(duration)}</span>` : ''}
+                            </div>
                         </div>
-                        <div class="episode-duration">${duration ? formatDuration(duration) : ''}</div>
+                        <div class="episode-actions">
+                            <a class="download-btn" href="${audioUrl}" download>⬇ MP3</a>
+                            <button class="download-btn" onclick="downloadTranscript(${type}Data.find(e => e.id === '${episode.id}'))">⬇ Text</button>
+                        </div>
                     </div>
                     <audio id="${audioId}" controls preload="none">
                         <source src="${audioUrl}" type="audio/mpeg">
                     </audio>
-                    <div class="transcript">${transcriptHtml || '<em>Kein Transkript verfügbar</em>'}</div>
+                    <div class="transcript">${transcriptHtml}</div>
                 </div>
             `;
         }
@@ -198,14 +266,26 @@
 
         function render() {
             const content = document.getElementById('content');
-            const data = currentTab === 'live' ? liveData : archiveData;
-
-            if (data.length === 0) {
-                content.innerHTML = '<div class="empty">Keine Einträge gefunden</div>';
-                return;
+            
+            let html = '';
+            
+            // Archive section
+            if (archiveData.length > 0) {
+                html += '<div class="section-title">📚 Archiv</div>';
+                html += archiveData.map(ep => renderEpisode(ep, 'archive')).join('');
             }
-
-            content.innerHTML = data.map(ep => renderEpisode(ep, currentTab)).join('');
+            
+            // Live section
+            if (liveData.length > 0) {
+                html += '<div class="section-title">🔴 Live Aufnahmen</div>';
+                html += liveData.map(ep => renderEpisode(ep, 'live')).join('');
+            }
+            
+            if (html === '') {
+                html = '<div class="empty">Keine Einträge gefunden</div>';
+            }
+            
+            content.innerHTML = html;
         }
 
         async function loadData() {
@@ -213,29 +293,19 @@
             content.innerHTML = '<div class="loading">Laden...</div>';
 
             try {
-                const [liveRes, archiveRes] = await Promise.all([
-                    fetch(`${DATA_BASE}/live/index.json`).then(r => r.ok ? r.json() : []).catch(() => []),
-                    fetch(`${DATA_BASE}/archive/index.json`).then(r => r.ok ? r.json() : []).catch(() => [])
+                const [archiveRes, liveRes] = await Promise.all([
+                    fetch(`${DATA_BASE}/archive/index.json`).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch(`${DATA_BASE}/live/index.json`).then(r => r.ok ? r.json() : []).catch(() => [])
                 ]);
 
-                liveData = liveRes;
                 archiveData = archiveRes;
+                liveData = liveRes;
 
                 render();
             } catch (err) {
                 content.innerHTML = `<div class="error">Fehler beim Laden: ${err.message}</div>`;
             }
         }
-
-        // Tab switching
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                currentTab = tab.dataset.tab;
-                render();
-            });
-        });
 
         // Initial load
         loadData();

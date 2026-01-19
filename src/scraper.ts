@@ -5,7 +5,10 @@ import { transcribeAudio, TranscriptSegment } from "./transcribe.js";
 
 const DATA_DIR = process.env.DATA_DIR || "./data";
 const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
-const API_URL = "https://austriafirst.at/wp-json/af-posts/v1/listen-back";
+const API_ENDPOINTS = [
+    "https://austriafirst.at/wp-json/af-posts/v1/listen-back",  // Shows/Interviews
+    "https://austriafirst.at/wp-json/af-posts/v1/posts",        // News/Journal
+];
 const SCRAPE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 export interface ArchiveEpisode {
@@ -106,15 +109,27 @@ async function downloadAudio(url: string, outputPath: string): Promise<void> {
 }
 
 async function fetchEpisodes(): Promise<APIEpisode[]> {
-    const content = await fetchViaFlareSolverr(API_URL);
+    const allEpisodes: APIEpisode[] = [];
+    const seenIds = new Set<number>();
     
-    try {
-        const episodes: APIEpisode[] = JSON.parse(content);
-        return episodes.filter(e => e.has_audio && e.audio_url);
-    } catch (err) {
-        console.error("Failed to parse API response:", content.slice(0, 200));
-        throw err;
+    for (const apiUrl of API_ENDPOINTS) {
+        console.log(`   Fetching ${apiUrl.split('/').pop()}...`);
+        try {
+            const content = await fetchViaFlareSolverr(apiUrl);
+            const episodes: APIEpisode[] = JSON.parse(content);
+            
+            for (const ep of episodes) {
+                if (ep.has_audio && ep.audio_url && !seenIds.has(ep.id)) {
+                    seenIds.add(ep.id);
+                    allEpisodes.push(ep);
+                }
+            }
+        } catch (err) {
+            console.error(`   Failed to fetch ${apiUrl}:`, err);
+        }
     }
+    
+    return allEpisodes;
 }
 
 async function processEpisode(episode: APIEpisode, archiveDir: string): Promise<ArchiveEpisode | null> {

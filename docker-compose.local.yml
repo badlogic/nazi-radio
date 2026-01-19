@@ -1,0 +1,39 @@
+# Local development - run with: docker-compose -f docker-compose.local.yml up
+services:
+  web:
+    image: caddy:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data:/data:ro
+      - ./frontend:/frontend:ro
+
+  monitor:
+    build: .
+    command: npx tsx watch src/index.ts
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATA_DIR=/data
+    volumes:
+      - ./src:/app/src:ro
+      - ./data:/data
+
+  scraper:
+    build: .
+    command: npx tsx watch src/scraper.ts
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATA_DIR=/data
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+    volumes:
+      - ./src:/app/src:ro
+      - ./data:/data
+    depends_on:
+      - flaresolverr
+
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Europe/Vienna

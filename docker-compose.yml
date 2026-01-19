@@ -1,0 +1,56 @@
+# Production - deployed to slayer.marioslab.io
+services:
+  web:
+    image: caddy:alpine
+    restart: unless-stopped
+    labels:
+      caddy: af.mariozechner.at
+      caddy.reverse_proxy: "{{upstreams 80}}"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data:/data:ro
+      - ./frontend:/frontend:ro
+    networks:
+      - caddy-network
+
+  monitor:
+    build: .
+    restart: unless-stopped
+    command: npx tsx src/index.ts
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATA_DIR=/data
+    volumes:
+      - ./src:/app/src:ro
+      - ./data:/data
+    networks:
+      - caddy-network
+
+  scraper:
+    build: .
+    restart: unless-stopped
+    command: npx tsx src/scraper.ts
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DATA_DIR=/data
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+    volumes:
+      - ./src:/app/src:ro
+      - ./data:/data
+    depends_on:
+      - flaresolverr
+    networks:
+      - caddy-network
+
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Europe/Vienna
+    networks:
+      - caddy-network
+
+networks:
+  caddy-network:
+    external: true

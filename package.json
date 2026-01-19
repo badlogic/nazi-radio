@@ -1,0 +1,19 @@
+{
+  "name": "nazi-radio",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "monitor": "npx tsx src/index.ts",
+    "scraper": "npx tsx src/scraper.ts",
+    "dev": "docker-compose up",
+    "publish": "./publish.sh"
+  },
+  "dependencies": {
+    "groq-sdk": "^0.9.1",
+    "tsx": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

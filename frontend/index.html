@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Austria First Transcripts</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #1a1a1a;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: #ddd;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .tab.active {
+            background: #0066cc;
+            color: white;
+        }
+        .episode {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .episode-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .episode-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1a1a1a;
+        }
+        .episode-date {
+            color: #666;
+            font-size: 13px;
+        }
+        .episode-duration {
+            color: #999;
+            font-size: 12px;
+        }
+        audio {
+            width: 100%;
+            margin: 15px 0;
+        }
+        .transcript {
+            background: #f9f9f9;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .transcript-segment {
+            margin-bottom: 8px;
+        }
+        .transcript-time {
+            color: #0066cc;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .transcript-time:hover {
+            text-decoration: underline;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #cc0000;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔴 Austria First Transcripts</h1>
+    <p class="subtitle">Automatische Transkription des FPÖ-Radiosenders</p>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="live">Live Aufnahmen</button>
+        <button class="tab" data-tab="archive">Archiv</button>
+    </div>
+
+    <div id="content">
+        <div class="loading">Laden...</div>
+    </div>
+
+    <script>
+        const DATA_BASE = '/data';
+        let currentTab = 'live';
+        let liveData = [];
+        let archiveData = [];
+
+        function formatDuration(ms) {
+            const mins = Math.floor(ms / 60000);
+            const secs = Math.floor((ms % 60000) / 1000);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatTime(ms) {
+            const mins = Math.floor(ms / 60000);
+            const secs = Math.floor((ms % 60000) / 1000);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatDate(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleDateString('de-AT', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function renderEpisode(episode, type) {
+            const audioUrl = `${DATA_BASE}/${episode.audioFile}`;
+            const audioId = `audio-${episode.id}`;
+            
+            // Calculate duration from transcript if not available
+            let duration = episode.duration;
+            if (!duration && episode.transcript && episode.transcript.length > 0) {
+                duration = episode.transcript[episode.transcript.length - 1].end;
+            }
+            
+            // Clean up title
+            let title = episode.title.replace(/\s*-\s*Austria First$/i, '').trim();
+            
+            const transcriptHtml = episode.transcript.map((seg, i) => `
+                <span class="transcript-segment">
+                    <span class="transcript-time" onclick="seekTo('${audioId}', ${seg.start})">${formatTime(seg.start)}</span>
+                    ${seg.text}
+                </span>
+            `).join(' ');
+
+            return `
+                <div class="episode">
+                    <div class="episode-header">
+                        <div>
+                            <div class="episode-title">${title}</div>
+                            <div class="episode-date">${formatDate(episode.timestamp)}</div>
+                        </div>
+                        <div class="episode-duration">${duration ? formatDuration(duration) : ''}</div>
+                    </div>
+                    <audio id="${audioId}" controls preload="none">
+                        <source src="${audioUrl}" type="audio/mpeg">
+                    </audio>
+                    <div class="transcript">${transcriptHtml || '<em>Kein Transkript verfügbar</em>'}</div>
+                </div>
+            `;
+        }
+
+        function seekTo(audioId, timeMs) {
+            const audio = document.getElementById(audioId);
+            if (audio) {
+                audio.currentTime = timeMs / 1000;
+                audio.play();
+            }
+        }
+
+        function render() {
+            const content = document.getElementById('content');
+            const data = currentTab === 'live' ? liveData : archiveData;
+
+            if (data.length === 0) {
+                content.innerHTML = '<div class="empty">Keine Einträge gefunden</div>';
+                return;
+            }
+
+            content.innerHTML = data.map(ep => renderEpisode(ep, currentTab)).join('');
+        }
+
+        async function loadData() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Laden...</div>';
+
+            try {
+                const [liveRes, archiveRes] = await Promise.all([
+                    fetch(`${DATA_BASE}/live/index.json`).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch(`${DATA_BASE}/archive/index.json`).then(r => r.ok ? r.json() : []).catch(() => [])
+                ]);
+
+                liveData = liveRes;
+                archiveData = archiveRes;
+
+                render();
+            } catch (err) {
+                content.innerHTML = `<div class="error">Fehler beim Laden: ${err.message}</div>`;
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+                render();
+            });
+        });
+
+        // Initial load
+        loadData();
+
+        // Refresh every 5 minutes
+        setInterval(loadData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

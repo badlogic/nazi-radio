@@ -1,0 +1,25 @@
+:80 {
+    # Serve frontend at root
+    root * /frontend
+    
+    # Serve data directory at /data
+    handle /data/* {
+        root * /
+        file_server
+    }
+    
+    # Serve frontend files
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+    
+    # Enable compression
+    encode gzip
+    
+    # CORS for API/data access
+    header /data/* {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, OPTIONS"
+    }
+}

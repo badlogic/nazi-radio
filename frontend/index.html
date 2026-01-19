@@ -16,12 +16,23 @@
             color: #333;
         }
         h1 {
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             color: #1a1a1a;
         }
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
+        .explainer {
+            background: #e8e8e8;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 25px;
+            font-size: 14px;
+            color: #444;
+            line-height: 1.5;
+        }
+        .explainer p {
+            margin-bottom: 8px;
+        }
+        .explainer p:last-child {
+            margin-bottom: 0;
         }
         .tabs {
             display: flex;
@@ -105,14 +116,35 @@
             width: 100%;
             margin: 15px 0;
         }
+        .transcript-container {
+            position: relative;
+        }
         .transcript {
             background: #f9f9f9;
             border-radius: 5px;
             padding: 15px;
-            max-height: 300px;
-            overflow-y: auto;
+            max-height: 150px;
+            overflow: hidden;
             font-size: 14px;
             line-height: 1.8;
+        }
+        .transcript.expanded {
+            max-height: none;
+        }
+        .transcript-toggle {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #555;
+        }
+        .transcript-toggle:hover {
+            background: #e5e5e5;
         }
         .transcript-segment {
             margin-bottom: 8px;
@@ -146,7 +178,14 @@
 </head>
 <body>
     <h1>Austria First Transcripts</h1>
-    <p class="subtitle">Automatische Transkription des FPO-Radiosenders</p>
+    
+    <div class="explainer">
+        <p>Diese Seite dokumentiert den FPOe-Radiosender "Austria First" durch automatische Transkription. 
+        Archivierte Sendungen werden von der offiziellen Website bezogen, Live-Aufnahmen direkt vom Stream mitgeschnitten.</p>
+        <p>Die Transkription erfolgt automatisch mittels Spracherkennung (Whisper). 
+        Fehler bei Eigennamen, Fachbegriffen oder undeutlicher Sprache sind moeglich. 
+        Zur Verifizierung werden die Original-Audiodateien bereitgestellt.</p>
+    </div>
 
     <div class="tabs">
         <button class="tab active" data-tab="archive">Archiv</button>
@@ -220,13 +259,16 @@
             
             let title = (episode.title || '').replace(/\s*-\s*Austria First$/i, '').trim();
             
-            const transcriptHtml = episode.transcript && episode.transcript.length > 0 
+            const hasTranscript = episode.transcript && episode.transcript.length > 0;
+            const transcriptHtml = hasTranscript 
                 ? episode.transcript.map((seg, i) => `
                     <span class="transcript-segment">
                         <span class="transcript-time" onclick="seekTo('${audioId}', ${seg.start})">${formatTime(seg.start)}</span>${seg.text}
                     </span>
                 `).join(' ')
                 : '<em>Kein Transkript verfuegbar</em>';
+
+            const transcriptId = `transcript-${episode.id}`;
 
             return `
                 <div class="episode">
@@ -246,7 +288,10 @@
                     <audio id="${audioId}" controls preload="none">
                         <source src="${audioUrl}" type="audio/mpeg">
                     </audio>
-                    <div class="transcript">${transcriptHtml}</div>
+                    <div class="transcript-container">
+                        <div id="${transcriptId}" class="transcript">${transcriptHtml}</div>
+                        ${hasTranscript ? `<button class="transcript-toggle" onclick="toggleTranscript('${transcriptId}', this)">Ausklappen</button>` : ''}
+                    </div>
                 </div>
             `;
         }
@@ -257,6 +302,12 @@
                 audio.currentTime = timeMs / 1000;
                 audio.play();
             }
+        }
+
+        function toggleTranscript(transcriptId, btn) {
+            const transcript = document.getElementById(transcriptId);
+            const expanded = transcript.classList.toggle('expanded');
+            btn.textContent = expanded ? 'Einklappen' : 'Ausklappen';
         }
 
         function render() {

@@ -37,6 +37,7 @@ interface ChunkInfo {
 // Shared state
 const metadataBuffer: MetadataSample[] = [];
 let lastMetaStatus: "music" | "speech" = "music";
+let lastMetaString: string = "";
 
 async function fetchMetadata(): Promise<{ artist: string | null; title: string | null }> {
     try {
@@ -60,8 +61,15 @@ function startMetadataPoller() {
         });
 
         lastMetaStatus = meta.artist ? "music" : "speech";
-        const status = meta.artist ? `🎵 ${meta.artist} - ${meta.title}` : "🎤 Speech";
-        process.stdout.write(`\r  ${new Date().toLocaleTimeString("de-AT")} ${status.padEnd(50)}`);
+        
+        // Only log when metadata changes
+        const metaString = meta.artist ? `${meta.artist} - ${meta.title}` : "Speech";
+        if (metaString !== lastMetaString) {
+            const time = new Date().toLocaleTimeString("de-AT");
+            const icon = meta.artist ? "[Music]" : "[Speech]";
+            console.log(`${time} ${icon} ${metaString}`);
+            lastMetaString = metaString;
+        }
 
         // Keep only last 15 minutes
         const cutoff = now - 15 * 60 * 1000;
@@ -98,26 +106,30 @@ async function mergeBroadcast(chunks: ChunkInfo[], liveDir: string): Promise<Liv
     const firstChunk = chunks[0];
     const id = firstChunk.startTime.toISOString().replace(/[:.]/g, "-");
     const broadcastDir = path.join(liveDir, id);
+    const time = new Date().toLocaleTimeString("de-AT");
     
     await fs.mkdir(broadcastDir, { recursive: true });
 
     const audioFile = path.join(broadcastDir, "audio.mp3");
     const jsonFile = path.join(broadcastDir, "broadcast.json");
 
-    console.log(`\n📼 Merging ${chunks.length} chunks into broadcast ${id}`);
+    const totalDuration = chunks.reduce((sum, c) => sum + c.duration, 0);
+    console.log(`${time} [Merge] ${chunks.length} chunks, ${(totalDuration / 1000 / 60).toFixed(1)} min`);
 
     // Merge audio files
     const chunkPaths = chunks.map(c => c.file);
     await mergeAudioFiles(chunkPaths, audioFile);
-
-    const totalDuration = chunks.reduce((sum, c) => sum + c.duration, 0);
-    console.log(`   Merged audio: ${(totalDuration / 1000 / 60).toFixed(1)} minutes`);
 
     // Transcribe merged file
     const transcript = await transcribeAudio(audioFile);
 
     // Generate title from first words
     const title = generateTitle(transcript, 10);
+    
+    // Log transcript preview
+    const fullText = transcript.map(s => s.text).join(" ");
+    const preview = fullText.slice(0, 200) + (fullText.length > 200 ? "..." : "");
+    console.log(`${new Date().toLocaleTimeString("de-AT")} [Transcript] ${preview}`);
 
     const broadcast: LiveBroadcast = {
         id,
@@ -134,8 +146,6 @@ async function mergeBroadcast(chunks: ChunkInfo[], liveDir: string): Promise<Liv
     for (const chunk of chunks) {
         await fs.unlink(chunk.file).catch(() => {});
     }
-
-    console.log(`   ✅ "${title}"`);
 
     return broadcast;
 }
@@ -161,18 +171,17 @@ async function updateLiveIndex(liveDir: string): Promise<void> {
 
     const indexPath = path.join(liveDir, "index.json");
     await fs.writeFile(indexPath, JSON.stringify(broadcasts, null, 2));
-    console.log(`📋 Updated live index: ${broadcasts.length} broadcasts`);
+    console.log(`${new Date().toLocaleTimeString("de-AT")} [Index] ${broadcasts.length} broadcasts`);
 }
 
 async function runService() {
-    console.log("🔴 Austria First Radio Monitor");
-    console.log(`   Stream: ${STREAM_URL}`);
-    console.log(`   Data dir: ${DATA_DIR}`);
-    console.log(`   Chunk duration: ${CHUNK_DURATION_SECS}s`);
-    console.log();
+    console.log("Austria First Radio Monitor");
+    console.log(`Stream: ${STREAM_URL}`);
+    console.log(`Chunk duration: ${CHUNK_DURATION_SECS}s`);
+    console.log("");
 
     if (!process.env.GROQ_API_KEY) {
-        console.error("❌ GROQ_API_KEY environment variable required");
+        console.error("Error: GROQ_API_KEY environment variable required");
         process.exit(1);
     }
 
@@ -181,32 +190,29 @@ async function runService() {
     await fs.mkdir(chunksDir, { recursive: true });
     await fs.mkdir(liveDir, { recursive: true });
 
-    // Start metadata polling
-    startMetadataPoller();
-
     // Accumulated speech chunks waiting to be merged
     let pendingChunks: ChunkInfo[] = [];
     const completedSegments = new Set<string>();
     let currentSegmentStart: Date | null = null;
     let isProcessing = false;
 
+    // Start metadata polling
+    startMetadataPoller();
+
     async function processCompletedChunk(chunkFile: string, startTime: Date) {
         const endTime = new Date(startTime.getTime() + CHUNK_DURATION_SECS * 1000);
         const hasSpeech = chunkHasSpeech(startTime, endTime);
         const speechRatio = getChunkSpeechRatio(startTime, endTime);
-
-        console.log(`\n✅ Chunk complete: ${path.basename(chunkFile)}`);
-        console.log(`   Time: ${startTime.toLocaleTimeString("de-AT")} - ${endTime.toLocaleTimeString("de-AT")}`);
-        console.log(`   Speech: ${hasSpeech ? "Yes" : "No"} (${(speechRatio * 100).toFixed(0)}%)`);
+        const time = new Date().toLocaleTimeString("de-AT");
 
         if (hasSpeech) {
+            console.log(`${time} [Chunk] ${startTime.toLocaleTimeString("de-AT")}-${endTime.toLocaleTimeString("de-AT")} speech:${(speechRatio * 100).toFixed(0)}% buffered (${pendingChunks.length + 1} pending)`);
             pendingChunks.push({
                 file: chunkFile,
                 startTime,
                 duration: CHUNK_DURATION_SECS * 1000,
                 hasSpeech: true,
             });
-            console.log(`   📦 Buffered (${pendingChunks.length} chunks pending)`);
         } else {
             // Music detected - if we have pending speech chunks, merge them
             if (pendingChunks.length > 0 && !isProcessing) {
@@ -218,14 +224,13 @@ async function runService() {
                     await mergeBroadcast(chunksToMerge, liveDir);
                     await updateLiveIndex(liveDir);
                 } catch (err) {
-                    console.error("❌ Merge failed:", err);
+                    console.error(`${time} [Error] Merge failed: ${err}`);
                 }
                 isProcessing = false;
             }
 
             // Delete the music-only chunk
             await fs.unlink(chunkFile).catch(() => {});
-            console.log(`   🗑️  Deleted (music only)`);
         }
     }
 
@@ -233,7 +238,7 @@ async function runService() {
     const segmentPattern = path.join(chunksDir, "chunk-%Y%m%d-%H%M%S.mp3");
 
     function startRecording() {
-        console.log("Starting ffmpeg recording...\n");
+        console.log(`${new Date().toLocaleTimeString("de-AT")} [Recording] Starting ffmpeg...`);
 
         const ffmpeg = spawn("ffmpeg", [
             "-y",
@@ -290,12 +295,12 @@ async function runService() {
         });
 
         ffmpeg.on("exit", (code) => {
-            console.error(`\nffmpeg exited with code ${code}, restarting in 5s...`);
+            console.log(`${new Date().toLocaleTimeString("de-AT")} [Recording] ffmpeg exited (code ${code}), restarting in 5s...`);
             setTimeout(startRecording, 5000);
         });
 
         ffmpeg.on("error", (err) => {
-            console.error("\nffmpeg error:", err, "restarting in 5s...");
+            console.log(`${new Date().toLocaleTimeString("de-AT")} [Recording] ffmpeg error: ${err}, restarting in 5s...`);
             setTimeout(startRecording, 5000);
         });
     }
@@ -310,7 +315,7 @@ async function runService() {
             
             // If last chunk is > 5 minutes old, force merge
             if (idleTime > 5 * 60 * 1000) {
-                console.log("\n⏰ Force merging due to idle timeout");
+                console.log(`${new Date().toLocaleTimeString("de-AT")} [Timeout] Force merging ${pendingChunks.length} pending chunks`);
                 isProcessing = true;
                 const chunksToMerge = [...pendingChunks];
                 pendingChunks = [];
@@ -319,7 +324,7 @@ async function runService() {
                     await mergeBroadcast(chunksToMerge, liveDir);
                     await updateLiveIndex(liveDir);
                 } catch (err) {
-                    console.error("❌ Merge failed:", err);
+                    console.error(`${new Date().toLocaleTimeString("de-AT")} [Error] Merge failed: ${err}`);
                 }
                 isProcessing = false;
             }

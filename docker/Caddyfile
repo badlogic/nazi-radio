@@ -22,4 +22,9 @@
         Access-Control-Allow-Origin *
         Access-Control-Allow-Methods "GET, OPTIONS"
     }
+    
+    # Disable caching for JSON files
+    header /data/*.json {
+        Cache-Control "no-cache, no-store, must-revalidate"
+    }
 }

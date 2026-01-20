@@ -355,9 +355,10 @@
             content.innerHTML = '<div class="loading">Laden...</div>';
 
             try {
+                const cacheBust = `?t=${Date.now()}`;
                 const [archiveRes, liveRes] = await Promise.all([
-                    fetch(`${DATA_BASE}/archive/index.json`).then(r => r.ok ? r.json() : []).catch(() => []),
-                    fetch(`${DATA_BASE}/live/index.json`).then(r => r.ok ? r.json() : []).catch(() => [])
+                    fetch(`${DATA_BASE}/archive/index.json${cacheBust}`).then(r => r.ok ? r.json() : []).catch(() => []),
+                    fetch(`${DATA_BASE}/live/index.json${cacheBust}`).then(r => r.ok ? r.json() : []).catch(() => [])
                 ]);
 
                 archiveData = archiveRes;
@@ -377,8 +378,8 @@
         // Initial load
         loadData();
 
-        // Refresh every 5 minutes
-        setInterval(loadData, 5 * 60 * 1000);
+        // Refresh every minute
+        setInterval(loadData, 60 * 1000);
     </script>
 
     <footer>

@@ -229,71 +229,78 @@ async function runService() {
         }
     }
 
-    // Start ffmpeg recording
+    // Start ffmpeg recording with auto-restart
     const segmentPattern = path.join(chunksDir, "chunk-%Y%m%d-%H%M%S.mp3");
 
-    console.log("⏺️  Starting continuous recording...\n");
+    function startRecording() {
+        console.log("Starting ffmpeg recording...\n");
 
-    const ffmpeg = spawn("ffmpeg", [
-        "-y",
-        "-i", STREAM_URL,
-        "-c", "copy",
-        "-f", "segment",
-        "-segment_time", CHUNK_DURATION_SECS.toString(),
-        "-strftime", "1",
-        "-reset_timestamps", "1",
-        segmentPattern,
-    ], { stdio: ["ignore", "ignore", "pipe"] });
+        const ffmpeg = spawn("ffmpeg", [
+            "-y",
+            "-reconnect", "1",
+            "-reconnect_streamed", "1", 
+            "-reconnect_delay_max", "5",
+            "-i", STREAM_URL,
+            "-c", "copy",
+            "-f", "segment",
+            "-segment_time", CHUNK_DURATION_SECS.toString(),
+            "-strftime", "1",
+            "-reset_timestamps", "1",
+            segmentPattern,
+        ], { stdio: ["ignore", "ignore", "pipe"] });
 
-    ffmpeg.stderr.on("data", (data) => {
-        const line = data.toString();
-        const match = line.match(/Opening '([^']+)' for writing/);
-        
-        if (match) {
-            const newFile = match[1];
-            const segmentName = path.basename(newFile);
+        ffmpeg.stderr.on("data", (data) => {
+            const line = data.toString();
+            const match = line.match(/Opening '([^']+)' for writing/);
+            
+            if (match) {
+                const newFile = match[1];
+                const segmentName = path.basename(newFile);
 
-            if (currentSegmentStart && !completedSegments.has(segmentName)) {
-                const prevFiles = fsSync.readdirSync(chunksDir)
-                    .filter(f => f.startsWith("chunk-") && f.endsWith(".mp3") && f !== segmentName)
-                    .sort();
+                if (currentSegmentStart && !completedSegments.has(segmentName)) {
+                    const prevFiles = fsSync.readdirSync(chunksDir)
+                        .filter(f => f.startsWith("chunk-") && f.endsWith(".mp3") && f !== segmentName)
+                        .sort();
 
-                for (const prevFile of prevFiles) {
-                    if (completedSegments.has(prevFile)) continue;
-                    completedSegments.add(prevFile);
+                    for (const prevFile of prevFiles) {
+                        if (completedSegments.has(prevFile)) continue;
+                        completedSegments.add(prevFile);
 
-                    const audioFile = path.join(chunksDir, prevFile);
+                        const audioFile = path.join(chunksDir, prevFile);
 
-                    // Parse timestamp from filename (local time)
-                    const tsMatch = prevFile.match(/chunk-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
-                    if (tsMatch) {
-                        const segmentStartTime = new Date(
-                            parseInt(tsMatch[1]),
-                            parseInt(tsMatch[2]) - 1,
-                            parseInt(tsMatch[3]),
-                            parseInt(tsMatch[4]),
-                            parseInt(tsMatch[5]),
-                            parseInt(tsMatch[6])
-                        );
+                        // Parse timestamp from filename (local time)
+                        const tsMatch = prevFile.match(/chunk-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+                        if (tsMatch) {
+                            const segmentStartTime = new Date(
+                                parseInt(tsMatch[1]),
+                                parseInt(tsMatch[2]) - 1,
+                                parseInt(tsMatch[3]),
+                                parseInt(tsMatch[4]),
+                                parseInt(tsMatch[5]),
+                                parseInt(tsMatch[6])
+                            );
 
-                        processCompletedChunk(audioFile, segmentStartTime);
+                            processCompletedChunk(audioFile, segmentStartTime);
+                        }
                     }
                 }
+
+                currentSegmentStart = new Date();
             }
+        });
 
-            currentSegmentStart = new Date();
-        }
-    });
+        ffmpeg.on("exit", (code) => {
+            console.error(`\nffmpeg exited with code ${code}, restarting in 5s...`);
+            setTimeout(startRecording, 5000);
+        });
 
-    ffmpeg.on("exit", (code) => {
-        console.error(`\n❌ ffmpeg exited with code ${code}`);
-        process.exit(1);
-    });
+        ffmpeg.on("error", (err) => {
+            console.error("\nffmpeg error:", err, "restarting in 5s...");
+            setTimeout(startRecording, 5000);
+        });
+    }
 
-    ffmpeg.on("error", (err) => {
-        console.error("\n❌ ffmpeg error:", err);
-        process.exit(1);
-    });
+    startRecording();
 
     // Periodic flush: merge pending chunks if idle for too long
     setInterval(async () => {

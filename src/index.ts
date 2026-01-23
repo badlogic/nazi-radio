@@ -237,8 +237,12 @@ async function runService() {
     // Start ffmpeg recording with auto-restart
     const segmentPattern = path.join(chunksDir, "chunk-%Y%m%d-%H%M%S.mp3");
 
+    let lastChunkTime = Date.now();
+    let ffmpegProcess: ReturnType<typeof spawn> | null = null;
+
     function startRecording() {
         console.log(`${new Date().toLocaleTimeString("de-AT")} [Recording] Starting ffmpeg...`);
+        lastChunkTime = Date.now();
 
         const ffmpeg = spawn("ffmpeg", [
             "-y",
@@ -253,6 +257,8 @@ async function runService() {
             "-reset_timestamps", "1",
             segmentPattern,
         ], { stdio: ["ignore", "ignore", "pipe"] });
+
+        ffmpegProcess = ffmpeg;
 
         ffmpeg.stderr.on("data", (data) => {
             const line = data.toString();
@@ -291,21 +297,33 @@ async function runService() {
                 }
 
                 currentSegmentStart = new Date();
+                lastChunkTime = Date.now();
             }
         });
 
         ffmpeg.on("exit", (code) => {
+            ffmpegProcess = null;
             console.log(`${new Date().toLocaleTimeString("de-AT")} [Recording] ffmpeg exited (code ${code}), restarting in 5s...`);
             setTimeout(startRecording, 5000);
         });
 
         ffmpeg.on("error", (err) => {
+            ffmpegProcess = null;
             console.log(`${new Date().toLocaleTimeString("de-AT")} [Recording] ffmpeg error: ${err}, restarting in 5s...`);
             setTimeout(startRecording, 5000);
         });
     }
 
     startRecording();
+
+    // Watchdog: restart ffmpeg if no chunks created in 5 minutes
+    setInterval(() => {
+        const staleTime = Date.now() - lastChunkTime;
+        if (staleTime > 5 * 60 * 1000 && ffmpegProcess) {
+            console.log(`${new Date().toLocaleTimeString("de-AT")} [Watchdog] No chunks in ${Math.floor(staleTime / 60000)} min, killing ffmpeg...`);
+            ffmpegProcess.kill('SIGKILL');
+        }
+    }, 60 * 1000);
 
     // Periodic flush: merge pending chunks if idle for too long
     setInterval(async () => {

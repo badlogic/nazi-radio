@@ -84,19 +84,32 @@ async function fetchViaFlareSolverr(url: string): Promise<string> {
 }
 
 async function downloadAudio(url: string, outputPath: string): Promise<void> {
-    if (!cfCookie) {
-        // Get cookie first
-        await fetchViaFlareSolverr(API_ENDPOINTS[0]);
-    }
+    // Always get fresh cookie before download
+    console.log(`   🔓 Fetching via FlareSolverr...`);
+    await fetchViaFlareSolverr(url.replace(/\/[^/]+$/, '/')); // Fetch parent directory to get cookie
 
     console.log(`   ⬇️  Downloading ${path.basename(url)}...`);
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
         headers: {
             Cookie: cfCookie!,
             "User-Agent": cfUserAgent!,
         },
     });
+
+    // Retry with fresh cookie on 403
+    if (response.status === 403) {
+        console.log(`   🔄 Got 403, refreshing cookie...`);
+        cfCookie = null;
+        await fetchViaFlareSolverr(API_ENDPOINTS[0]);
+        
+        response = await fetch(url, {
+            headers: {
+                Cookie: cfCookie!,
+                "User-Agent": cfUserAgent!,
+            },
+        });
+    }
 
     if (!response.ok) {
         throw new Error(`Download failed: HTTP ${response.status}`);
